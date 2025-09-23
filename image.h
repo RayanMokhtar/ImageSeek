@@ -68,7 +68,7 @@ double detection_contours_hysterisis(double **mag_norm, byte **edges,
                       long nrl, long nrh, long ncl, long nch, double t_norm);
 
 // Calcule l'histogramme des 256 niveaux de gris, normalisé (somme = 1)
-void histogram256_norm(byte **gray, long nrl, long nrh, long ncl, long nch, double hist[256]);
+void histogramme256_normalise(byte **gray, long nrl, long nrh, long ncl, long nch, double hist[256]);
 
 
 // Fonction principale : extrait toutes les caractéristiques d'un fichier image (PGM/PPM auto-détecté)
@@ -81,5 +81,23 @@ int extraire_features_from_file(const char *filename, ImageFeatures *feat,
 void ecrire_csv_header(FILE *fout);
 
 void ecrire_csv_ligne(FILE *fout, const char *name, const ImageFeatures *feat);
+
+
+
+//pointeur de fct ici utile pour choisir la fonction à la volée directement en paramètre
+//parenthèses autour de DistanceFunc est la convention pour déclarer un pointeru de fonction
+typedef double (*DistanceFunc)(const double hist1[256], const double hist2[256]);
+
+
+double distance_euclidienne(const double hist1[256], const double hist2[256]);
+double distance_bhattacharyya(const double hist1[256], const double hist2[256]);
+double distance_hellinger(const double hist1[256], const double hist2[256]);
+double distance_chi_square(const double hist1[256], const double hist2[256]);
+
+// Fonction d'évaluation du score de similarité
+double evaluate_score(const ImageFeatures *feat1, const ImageFeatures *feat2, DistanceFunc dist_func,
+                      double weight_hist, double weight_r, double weight_g, double weight_b,
+                      double weight_norm, double weight_contour, double weight_color);
+
 
 #endif 

@@ -1,12 +1,13 @@
 CC = gcc
 CFLAGS = -I. -INRC -lm #flags ici à voir si pertients
-TARGET = main_programme
+EXECUTABLE = main_programme
 SOURCES = main.c image.c nrc/nrio.c nrc/nralloc.c nrc/nrarith.c
+SOURCESTEST = test.c image.c nrc/nrio.c nrc/nralloc.c nrc/nrarith.c
 
-$(TARGET): $(SOURCES)
-	$(CC) -o $(TARGET) $(SOURCES) $(CFLAGS)
+$(EXECUTABLE): $(SOURCESTEST) 
+	$(CC) -o $(EXECUTABLE) $(SOURCESTEST) $(CFLAGS)
 
 run: 
-	./$(TARGET)
+	./$(EXECUTABLE)
 clean:
-	rm -f $(TARGET).exe
+	rm -f $(EXECUTABLE)
