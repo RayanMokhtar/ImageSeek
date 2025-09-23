@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 
 //ajout des dépendances ici 
 #include "nrc/def.h"
@@ -22,7 +23,7 @@
 typedef struct {
     long nrl, nrh, ncl, nch; //bornes de l'image
     long width, height;      // W*H => déduire nbr de pixels 
-    //Caractèristiques
+    //Caractéristiques
     double moyenne_gradient_norme;   
     double densite_contours;     
     double ratio_rouge;        
@@ -30,6 +31,22 @@ typedef struct {
     double ratio_bleu;       
     int  est_couleur;         
     double hist[256];       
+    
+    // Nouvelles caractéristiques améliorées
+    double hist_variance;     // Variance de l'histogramme
+    double hist_skewness;     // Asymétrie de l'histogramme
+    double hist_kurtosis;     // Aplatissement de l'histogramme
+    double hist_entropy;      // Entropie de l'histogramme
+    
+    // Histogrammes multi-échelles (4 quadrants)
+    double hist_quad1[256];   // Quadrant haut-gauche
+    double hist_quad2[256];   // Quadrant haut-droite  
+    double hist_quad3[256];   // Quadrant bas-gauche
+    double hist_quad4[256];   // Quadrant bas-droite
+    
+    // Texture améliorée
+    double gradient_variance; // Variance des gradients
+    double contour_coherence; // Cohérence des contours
 } ImageFeatures;
 
 
@@ -93,11 +110,49 @@ double distance_euclidienne(const double hist1[256], const double hist2[256]);
 double distance_bhattacharyya(const double hist1[256], const double hist2[256]);
 double distance_hellinger(const double hist1[256], const double hist2[256]);
 double distance_chi_square(const double hist1[256], const double hist2[256]);
+double distance_earth_mover(const double hist1[256], const double hist2[256]);
 
-// Fonction d'évaluation du score de similarité
+// Nouvelles fonctions pour moments statistiques
+double calculer_variance_histogramme(const double hist[256]);
+double calculer_skewness_histogramme(const double hist[256]);
+double calculer_kurtosis_histogramme(const double hist[256]);
+double calculer_entropie_histogramme(const double hist[256]);
+
+// Histogrammes multi-échelles
+void calculer_histogrammes_quadrants(byte **gray, long nrl, long nrh, long ncl, long nch,
+                                   double hist_q1[256], double hist_q2[256], 
+                                   double hist_q3[256], double hist_q4[256]);
+
+// Texture améliorée
+double calculer_variance_gradients(byte **gray, long nrl, long nrh, long ncl, long nch);
+double calculer_coherence_contours(double **mag_norm, byte **edges, 
+                                 long nrl, long nrh, long ncl, long nch);
+
+// Fonction utilitaire pour la détection couleur
+int verifier_image_couleur_est_nb(uint64_t rsum, uint64_t gsum, uint64_t bsum,
+                                 long nrl, long nrh, long ncl, long nch);
+
+// Structure pour les poids adaptatifs
+typedef struct {
+    double weight_hist_global;
+    double weight_hist_local;
+    double weight_moments;
+    double weight_r, weight_g, weight_b;
+    double weight_norm, weight_contour, weight_color;
+    double weight_texture;
+} AdaptiveWeights;
+
+// Calcul des poids adaptatifs basés sur le contenu
+AdaptiveWeights calculer_poids_adaptatifs(const ImageFeatures *feat_ref);
+
+// Fonction d'évaluation du score de similarité (version simple)
 double evaluate_score(const ImageFeatures *feat1, const ImageFeatures *feat2, DistanceFunc dist_func,
                       double weight_hist, double weight_r, double weight_g, double weight_b,
                       double weight_norm, double weight_contour, double weight_color);
+
+// Fonction d'évaluation du score de similarité améliorée
+double evaluate_score_enhanced(const ImageFeatures *feat1, const ImageFeatures *feat2, 
+                             DistanceFunc dist_func, const AdaptiveWeights *weights);
 
 
 #endif 

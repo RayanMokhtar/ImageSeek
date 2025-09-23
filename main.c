@@ -12,7 +12,23 @@ int main() {
         printf("Erreur extraction référence: %s\n", filename_ref);
         return 1;
     }
-    printf("Référence extraite: %s (Largeur: %ld)\n", filename_ref, feat_ref.width);
+    printf("=== Image de Référence ===\n");
+    printf("Fichier: %s\n", filename_ref);
+    printf("Dimensions: %ld x %ld\n", feat_ref.width, feat_ref.height);
+    printf("Est couleur: %s\n", feat_ref.est_couleur ? "Oui" : "Non");
+    printf("Moyenne gradient: %.4f\n", feat_ref.moyenne_gradient_norme);
+    printf("Densité contours: %.4f\n", feat_ref.densite_contours);
+    printf("Variance histogramme: %.2f\n", feat_ref.hist_variance);
+    printf("Asymétrie: %.4f\n", feat_ref.hist_skewness);
+    printf("Aplatissement: %.4f\n", feat_ref.hist_kurtosis);
+    printf("Entropie: %.4f\n", feat_ref.hist_entropy);
+    printf("Variance gradients: %.2f\n", feat_ref.gradient_variance);
+    printf("Cohérence contours: %.4f\n", feat_ref.contour_coherence);
+    if (feat_ref.est_couleur) {
+        printf("Ratios RGB: R=%.3f G=%.3f B=%.3f\n", 
+               feat_ref.ratio_rouge, feat_ref.ratio_vert, feat_ref.ratio_bleu);
+    }
+    printf("=========================\n\n");
     
     // Liste des répertoires à scanner
     const char* directories[] = {
@@ -21,11 +37,19 @@ int main() {
     };
     int num_dirs = sizeof(directories) / sizeof(directories[0]);
     
-    // Poids pour evaluate_score (ajustez selon les tests)
-    double weight_hist = 0.5;
-    double weight_r = 0.05 , weight_g = 0.05, weight_b = 0.05;
-    double weight_norm = 0.1, weight_contour = 0.2, weight_color = 0.1;
-    DistanceFunc dist_func = distance_bhattacharyya ;  
+    // Calcul des poids adaptatifs basés sur l'image de référence
+    AdaptiveWeights adaptive_weights = calculer_poids_adaptatifs(&feat_ref);
+    
+    // Configuration des fonctions de distance (testez différentes fonctions)
+    DistanceFunc dist_func = distance_earth_mover; // Nouvelle distance EMD
+    
+    printf("=== Configuration Adaptative ===\n");
+    printf("Poids histogramme global: %.3f\n", adaptive_weights.weight_hist_global);
+    printf("Poids histogramme local: %.3f\n", adaptive_weights.weight_hist_local);
+    printf("Poids moments: %.3f\n", adaptive_weights.weight_moments);
+    printf("Poids texture: %.3f\n", adaptive_weights.weight_texture);
+    printf("Poids contours: %.3f\n", adaptive_weights.weight_contour);
+    printf("================================\n\n");  
     
     // Parcourir chaque répertoire
     for (int d = 0; d < num_dirs; d++) {
@@ -57,10 +81,8 @@ int main() {
                 continue;
             }
             
-            // Calculer le score de similarité
-            double score = evaluate_score(&feat_ref, &feat_curr, dist_func,
-                                          weight_hist, weight_r, weight_g, weight_b,
-                                          weight_norm, weight_contour, weight_color);
+            // Calculer le score de similarité avec la nouvelle fonction améliorée
+            double score = evaluate_score_enhanced(&feat_ref, &feat_curr, dist_func, &adaptive_weights);
             
             // Afficher le résultat
             printf("Image: %s, Score: %.4f\n", full_path, score);
