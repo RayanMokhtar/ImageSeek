@@ -4,8 +4,9 @@
 #include <math.h>
 #include "image.h"
 
-// Fonction utilitaire pour clamper une valeur int entre 0 et 255
-static inline byte clampi(int v) {
+
+//utilitaire à déplacer static pour limiter la visibilité de cette fonctiion dans ce fichier ... mais inline ici est utile, au lieu d'appeler la fonction on remplace l'appel par le corps de la fonction dans la fonction précise.
+static inline byte borne_sup_inf(int v) {
     if (v < 0) return 0;
     if (v > 255) return 255;
     return (byte)v;
@@ -43,7 +44,7 @@ rgb8 **load_ppm_rgb_and_to_gray(const char *filename,
 
             //conversion image en niveau de gris => et transformer image directement
             double y = 0.299 * rgb[i][j].r + 0.587 * rgb[i][j].g + 0.114 * rgb[i][j].b;
-            (*pgray)[i][j] = clampi((int)(y + 0.5));  // Arrondi et clamp
+            (*pgray)[i][j] = borne_sup_inf((int)(y)); //TODO à enlever ou remplacer
         }
     }
 

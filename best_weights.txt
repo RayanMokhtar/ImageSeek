@@ -1,0 +1,9 @@
+Meilleurs poids pour evaluate_score :
+Hist: 0.500
+R: 0.200
+G: 0.200
+B: 0.300
+Norm: 0.100
+Contour: 0.100
+Color: 0.050
+Accuracy: 0.800

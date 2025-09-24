@@ -1,20 +1,3 @@
-/*
- * Ce fichier implémente un grid search pour optimiser les poids de la fonction evaluate_score
- * dans le système d'indexation d'images. Il utilise un dataset d'images PGM pour entraîner
- * et évaluer les poids optimaux pour retrouver des images similaires (même catégorie).
- * 
- * Fonctionnalités :
- * - Chargement du dataset depuis un dossier.
- * - Extraction des catégories des noms de fichiers.
- * - Calcul du top-k images similaires pour chaque requête.
- * - Grid search sur les poids pour maximiser l'accuracy.
- * - Analyse des échecs avec détails sur attendu vs retourné.
- * 
- * Dépendances : image.h (pour ImageFeatures, extraire_features_from_file, evaluate_score, etc.)
- * Compilation : make run_test
- * Temps estimé : 10-20 minutes pour ~62 500 combinaisons.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -83,7 +66,7 @@ int load_dataset(const char *dir_path, DatasetImage **dataset, int *num_images) 
             char full_path[512];
             sprintf(full_path, "%s/%s", dir_path, entry->d_name);
             // Charge les features ; si échec, ignore l'image
-            if (extraire_features_from_file(full_path, &(*dataset)[idx].feat, 0, 0.25, IMAGE_TYPE_PGM) != 0) {
+            if (extraire_features_from_file(full_path, &(*dataset)[idx].feat, 0, 0.25, IMAGE_TYPE_PPM) != 0) {
                 printf("Erreur extraction features pour %s\n", full_path);
                 idx--;  // Ne compte pas cette image
             }
@@ -115,7 +98,7 @@ void get_similar_indices(const DatasetImage *dataset, int num_images, int query_
  * - Exclut soi-même.
  * - Utilise evaluate_score avec les poids donnés.
  * - Tri simple : trouve le min k fois.
- */
+*/
 void get_top_k(const DatasetImage *dataset, int num_images, int query_idx, DistanceFunc dist_func,
                double w_hist, double w_r, double w_g, double w_b, double w_norm, double w_contour, double w_color,
                int k, int *top_k_indices) {
@@ -187,14 +170,13 @@ void grid_search_cv(const char *dir_path, DistanceFunc dist_func, int k) {
         return;  // Erreur déjà affichée
     }
 
-    // Grilles de poids : ajustées pour couvrir des valeurs pertinentes
-    // Nombre de combinaisons : 5*5*5*5*5*4*5 = 62 500 (estimé 10-20 min)
-    double hist_vals[] = {0.2, 0.25 , 0.3 , 0.35};     // Poids histogramme
-    double rgb_vals[] = {0.0, 0.05, 0.1, 0.2, 0.3};     // Poids R, G, B
-    double norm_vals[] = {0.05, 0.1, 0.2, 0.3, 0.4};    // Poids norme gradient
-    double contour_vals[] = {0.1, 0.2, 0.3, 0.5};        // Poids contours
-    double color_vals[] = {0.0, 0.05, 0.1, 0.2, 0.3};   // Poids couleur globale
-
+    
+    double hist_vals[] = {0.5, 1.0, 1.5, 2.0};     // 5 valeurs (suppression de 2.5)
+    double rgb_vals[] = {0.05, 0.1, 0.2, 0.3};     // 5 valeurs (suppression de 0.5)
+    double norm_vals[] = {0.1, 0.2, 0.3, 0.4};     // 5 valeurs (suppression de 0.5)
+    double contour_vals[] = {0.1, 0.2, 0.3};        // 4 valeurs (suppression de 0.5)
+    double color_vals[] = {0.05, 0.1, 0.2, 0.3}; 
+    
     int nh = sizeof(hist_vals) / sizeof(double);
     int nr = sizeof(rgb_vals) / sizeof(double);
     int nn = sizeof(norm_vals) / sizeof(double);
@@ -218,8 +200,8 @@ void grid_search_cv(const char *dir_path, DistanceFunc dist_func, int k) {
                         for (int ico = 0; ico < nc; ico++) {
                             for (int icol = 0; icol < nco; icol++) {
                                 current_combination++;
-                                if (current_combination % 1000 == 0) {
-                                    printf("Progression : %d/%d combinaisons traitées\n", current_combination, total_combinations);
+                                if (current_combination % 5000 == 0) {  // Affichage moins fréquent pour moins de spam
+                                    printf("Progression : %d/%d combinaisons traitées (%.1f%%)\n", current_combination, total_combinations, (double)current_combination / total_combinations * 100);
                                 }
 
                                 double accuracy = 0.0;
@@ -230,10 +212,18 @@ void grid_search_cv(const char *dir_path, DistanceFunc dist_func, int k) {
                                                                hist_vals[ih], rgb_vals[ir], rgb_vals[ig], rgb_vals[ib],
                                                                norm_vals[inn], contour_vals[ico], color_vals[icol], k);
                                     accuracy += acc;
-                                    // Score total : moyenne des scores (optionnel, pour tie-breaker)
-                                    score_total += evaluate_score(&dataset[q].feat, &dataset[(q+1)%num_images].feat, dist_func,  // Compare à une autre pour variété
-                                                                  hist_vals[ih], rgb_vals[ir], rgb_vals[ig], rgb_vals[ib],
-                                                                  norm_vals[inn], contour_vals[ico], color_vals[icol]);
+                                    // Score total amélioré : moyenne des scores entre la requête et toutes les autres (plus représentatif)
+                                    double local_score = 0.0;
+                                    int count = 0;
+                                    for (int other = 0; other < num_images; other++) {
+                                        if (other != q) {
+                                            local_score += evaluate_score(&dataset[q].feat, &dataset[other].feat, dist_func,
+                                                                          hist_vals[ih], rgb_vals[ir], rgb_vals[ig], rgb_vals[ib],
+                                                                          norm_vals[inn], contour_vals[ico], color_vals[icol]);
+                                            count++;
+                                        }
+                                    }
+                                    score_total += local_score / count;
                                 }
                                 accuracy /= num_images;
                                 score_total /= num_images;
@@ -268,6 +258,24 @@ void grid_search_cv(const char *dir_path, DistanceFunc dist_func, int k) {
     printf("  Contour: %.3f (densité des contours)\n", best_w_contour);
     printf("  Color: %.3f (features couleur globale)\n", best_w_color);
     printf("Accuracy : %.3f (%d/%d requêtes réussies)\n", best_accuracy, (int)(best_accuracy * num_images), num_images);
+
+    // Sauvegarde des meilleurs poids dans un fichier
+    FILE *file = fopen("best_weights.txt", "w");
+    if (file) {
+        fprintf(file, "Meilleurs poids pour evaluate_score :\n");
+        fprintf(file, "Hist: %.3f\n", best_w_hist);
+        fprintf(file, "R: %.3f\n", best_w_r);
+        fprintf(file, "G: %.3f\n", best_w_g);
+        fprintf(file, "B: %.3f\n", best_w_b);
+        fprintf(file, "Norm: %.3f\n", best_w_norm);
+        fprintf(file, "Contour: %.3f\n", best_w_contour);
+        fprintf(file, "Color: %.3f\n", best_w_color);
+        fprintf(file, "Accuracy: %.3f\n", best_accuracy);
+        fclose(file);
+        printf("Poids sauvegardés dans 'best_weights.txt'\n");
+    } else {
+        printf("Erreur : Impossible de sauvegarder les poids\n");
+    }
 
     // Analyse détaillée des échecs
     printf("\n--- ANALYSE DES ÉCHECS ---\n");
@@ -310,7 +318,7 @@ void grid_search_cv(const char *dir_path, DistanceFunc dist_func, int k) {
 int main() {
     const char *dir_path = "./archivePPMPGM/archive10ppm";  // Dossier du dataset
     DistanceFunc dist_func = distance_bhattacharyya;       // Fonction de distance (peut être changée)
-    int k = 4;                                             // Top-k pour l'évaluation
+    int k = 2;                                             // Top-k pour l'évaluation
     grid_search_cv(dir_path, dist_func, k);
     return 0;
 }

@@ -1,31 +1,58 @@
 #include "image.h"
 #include <dirent.h>
-#include <string.h>  
+#include <string.h>
+#include <libgen.h>  // Pour basename (si disponible, sinon manuel)
+
+// Structure pour stocker nom et features d'une image
+typedef struct {
+    char filename[256];
+    ImageFeatures feat;
+} ImageData;
+
+void write_image_to_csv(FILE *f, const char *filename, ImageFeatures *feat) {
+    // Construire la chaîne pour l'histogramme : "[val0,val1,...,val255]"
+    char hist_str[4096];  // Buffer assez grand pour 256 valeurs (environ 6 chars chacune + virgules + crochets)
+    sprintf(hist_str, "[");  // Début du tableau JSON
+    for (int i = 0; i < 256; i++) {
+        char val_str[32];
+        sprintf(val_str, "%.6f", feat->hist[i]);
+        strcat(hist_str, val_str);
+        if (i < 255) strcat(hist_str, ",");  // Virgule entre éléments
+    }
+    strcat(hist_str, "]");  // Fin du tableau JSON
+    
+    fprintf(f, "\"%s\",%ld,%ld,%.6f,%.6f,%.6f,%.6f,%.6f,%d,\"%s\"\n",
+            filename,
+            feat->width,  // Largeur de l'image
+            feat->height,  // Hauteur de l'image
+            feat->moyenne_gradient_norme,  // Moyenne de la norme du gradient
+            feat->densite_contours,  // Densité des contours
+            feat->ratio_rouge,  // Ratio rouge
+            feat->ratio_vert,  // Ratio vert
+            feat->ratio_bleu,  // Ratio bleu
+            feat->est_couleur,  // Indicateur couleur (0 ou 1)
+            hist_str  // Histogramme comme tableau JSON
+    );
+}
 
 int main() {
-    ImageFeatures feat_ref;  // Caractéristiques de l'image de référence
-    char* filename_ref = "./archivePPMPGM/archive10pgm/arbre1.pgm";
-    char* chemin_fichier_csv = "sortiefichier.csv";
-    
-    // Extraire les caractéristiques de l'image de référence
-    if (extraire_features_from_file(filename_ref, &feat_ref, 0, 0.25, IMAGE_TYPE_PGM) != 0) {
-        printf("Erreur extraction référence: %s\n", filename_ref);
-        return 1;
-    }
-    printf("Référence extraite: %s (Largeur: %ld)\n", filename_ref, feat_ref.width);
+    char* chemin_fichier_csv = "features_all.csv";  // Changé pour refléter toutes les features
     
     // Liste des répertoires à scanner
     const char* directories[] = {
-        // "./archivePPMPGM/archive10ppm",
-        "./archivePPMPGM/archive10pgm"
+        "./archivePPMPGM/archive500ppm"
     };
     int num_dirs = sizeof(directories) / sizeof(directories[0]);
     
-    // Poids pour evaluate_score (ajustez selon les tests)
-    double weight_hist = 0.5;
-    double weight_r = 0.05 , weight_g = 0.05, weight_b = 0.05;
-    double weight_norm = 0.1, weight_contour = 0.2, weight_color = 0.1;
-    DistanceFunc dist_func = distance_bhattacharyya ;  
+    // Ouvrir le fichier CSV pour écriture
+    FILE *f = fopen(chemin_fichier_csv, "w");
+    if (!f) {
+        printf("Erreur ouverture CSV: %s\n", chemin_fichier_csv);
+        return 1;
+    }
+    
+    // Écrire l'en-tête CSV : "filename,width,height,moyenne_gradient_norme,densite_contours,ratio_rouge,ratio_vert,ratio_bleu,is_color,histogram"
+    fprintf(f, "filename,width,height,moyenne_gradient_norme,densite_contours,ratio_rouge,ratio_vert,ratio_bleu,est_couleur,histogram\n");
     
     // Parcourir chaque répertoire
     for (int d = 0; d < num_dirs; d++) {
@@ -50,35 +77,28 @@ int main() {
             else if (strstr(entry->d_name, ".ppm")) image_type = IMAGE_TYPE_PPM;
             else continue;  // Ignorer les fichiers non image
             
-            // Extraire les caractéristiques de l'image courante
-            ImageFeatures feat_curr;
-            if (extraire_features_from_file(full_path, &feat_curr, 0, 0.25, image_type) != 0) {
+            // Extraire les caractéristiques de l'image
+            ImageFeatures feat;
+            if (extraire_features_from_file(full_path, &feat, 0, 0.25, image_type) != 0) {
                 printf("Erreur extraction: %s\n", full_path);
                 continue;
             }
             
-            // Calculer le score de similarité
-            double score = evaluate_score(&feat_ref, &feat_curr, dist_func,
-                                          weight_hist, weight_r, weight_g, weight_b,
-                                          weight_norm, weight_contour, weight_color);
+            // Extraire le nom du fichier sans chemin (utilise basename si disponible, sinon manuel)
+            char filename_only[256];
+            strcpy(filename_only, entry->d_name);  
             
-            // Afficher le résultat
-            printf("Image: %s, Score: %.4f\n", full_path, score);
+            // Appeler la fonction pour écrire la ligne CSV
+            write_image_to_csv(f, filename_only, &feat);
+            
+            printf("Features sauvegardées pour: %s\n", filename_only);
         }
         
         closedir(dir);
     }
     
-    // // Sauvegarde en CSV (optionnel, pour l'image de référence)
-    // FILE *f = fopen(chemin_fichier_csv, "a");
-    // if (f) {
-    //     // ecrire_csv_header(f); // Si besoin d'écrire l'en-tête une fois
-    //     ecrire_csv_ligne(f, filename_ref, &feat_ref);
-    //     fclose(f);
-    //     printf("CSV écrit dans %s\n", chemin_fichier_csv);
-    // } else {
-    //     printf("Erreur ouverture CSV\n");
-    // }
+    fclose(f);
+    printf("Toutes les features sauvegardées dans %s\n", chemin_fichier_csv);
     
     return 0;
 }
