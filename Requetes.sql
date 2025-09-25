@@ -1,0 +1,24 @@
+-- Requete peu de vert et beacoup de rouge
+SELECT ID, FILENAME
+FROM   MULTIMEDIA
+WHERE  RATIO_VERT <= 0.3
+  AND  RATIO_ROUGE >= 0.33
+  AND RATIO_BLEU <= 0.33;
+  
+
+-- Requete images en noir et blanc 
+SELECT ID, FILENAME
+FROM   MULTIMEDIA
+WHERE  ABS(RATIO_ROUGE - RATIO_VERT) < 0.005
+  AND  ABS(RATIO_ROUGE - RATIO_BLEU) < 0.005
+  AND  ABS(RATIO_VERT - RATIO_BLEU) < 0.005
+  and FILENAME = '99.jpg';
+  
+
+-- Requete des images texturées
+SELECT ID, FILENAME
+FROM   MULTIMEDIA
+WHERE  MOYENNE_GRADIENT_NORME > 0.05
+  AND  DENSITE_CONTOURS > 0.05;
+
+
