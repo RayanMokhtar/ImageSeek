@@ -3,28 +3,24 @@
 #include <string.h>
 #include <dirent.h>
 #include <math.h>
-#include <ctype.h>  // Pour isdigit dans extract_category
+#include <ctype.h>  
 #include "image.h"
 
-// Structure pour une image dans le dataset
-typedef struct {
-    char filename[256];     // Nom du fichier (ex. "arbre1.pgm")
-    char category[256];     // Catégorie extraite (ex. "arbre")
-    ImageFeatures feat;     // Caractéristiques extraites (histogrammes, contours, etc.)
+Stypedef struct {
+    char filename[256];   $
+    char category[256];    
+    ImageFeatures feat;     
 } DatasetImage;
 
-/*
- * Extrait la catégorie d'un nom de fichier.
- * Exemple : "arbre1.pgm" -> "arbre"
- * Logique : Enlève l'extension, puis enlève les chiffres à la fin.
- */
+
+
 void extract_category(const char *filename, char *category) {
     strcpy(category, filename);
     char *dot = strrchr(category, '.');  // Trouve le dernier '.'
-    if (dot) *dot = '\0';  // Enlève l'extension (.pgm)
+    if (dot) *dot = '\0'; 
     char *num = category;
-    while (*num && !isdigit(*num)) num++;  // Avance jusqu'aux chiffres
-    if (num > category) *(num - 1) = '\0';  // Enlève les chiffres et le caractère précédent
+    while (*num && !isdigit(*num)) num++;  //avance jusquaux chiffre
+    if (num > category) *(num - 1) = '\0';  t
 }
 
 /*

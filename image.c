@@ -12,18 +12,18 @@ static inline byte borne_sup_inf(int v) {
     return (byte)v;
 }
 
-// Charge une image PGM en niveaux de gris
+//pgm ici en niveaux de gris, plus simple à retenir que la méthode native de la bib
 byte **load_pgm_gray(const char *filename, long *nrl, long *nrh, long *ncl, long *nch) {
     return LoadPGM_bmatrix((char*)filename, nrl, nrh, ncl, nch);
 }
 
-// Charge une image PPM couleur, convertit en gris, calcule ratios RGB et détecte couleur
+//Charge une image PPM couleur=>  convertit en gris, calcule ratios RGB et détecte couleur
 rgb8 **load_ppm_rgb_and_to_gray(const char *filename,
                                 long *nrl, long *nrh, long *ncl, long *nch,
                                 byte ***pgray,
                                 double *r_ratio, double *g_ratio, double *b_ratio,
                                 int *is_color) {
-    // Charge l'image PPM
+
     rgb8 **rgb = LoadPPM_rgb8matrix((char*)filename, nrl, nrh, ncl, nch);
     if (!rgb) return NULL;
 
@@ -44,7 +44,7 @@ rgb8 **load_ppm_rgb_and_to_gray(const char *filename,
 
             //conversion image en niveau de gris => et transformer image directement
             double y = 0.299 * rgb[i][j].r + 0.587 * rgb[i][j].g + 0.114 * rgb[i][j].b;
-            (*pgray)[i][j] = borne_sup_inf((int)(y)); //TODO à enlever ou remplacer
+            (*pgray)[i][j] = borne_sup_inf((int)(y)); //TODO à enlever ou remplacer pour cas partir entiere
         }
     }
 
@@ -74,10 +74,10 @@ void filtre_moyenneur(byte **in, byte **out, long nrl, long nrh, long ncl, long 
     long i, j;
     for (i = nrl + 1; i <= nrh - 1; i++) {
         for (j = ncl + 1; j <= nch - 1; j++) {
-            //
+            //intérieur du fitlre => associer avec toutes les valeurs 
             int s = 0;
             s += in[i-1][j-1] + in[i-1][j] + in[i-1][j+1];
-            s += in[i  ][j-1] + in[i  ][j] + in[i  ][j+1];
+            s += in[i][j-1] + in[i][j] + in[i][j+1];
             s += in[i+1][j-1] + in[i+1][j] + in[i+1][j+1];
             //moyenne de chaque puixel
             out[i][j] = (byte)(s / 9);
@@ -141,21 +141,21 @@ double gradient_magnitude_norm(byte **gray, double **mag_norm,
 
     double sum = 0.0;
     long count = 0;
-    // Calcule pour l'intérieur
+    //ici pour chaque pixel caclul de la magnitude 
     for (long i = nrl + 1; i <= nrh - 1; i++) {
         for (long j = ncl + 1; j <= nch - 1; j++) {
             double gx = (double)ix[i][j];
             double gy = (double)iy[i][j];
             double mag = sqrt(gx * gx + gy * gy);
-            double mn = mag / VAL_SOBEL_MAX_THEORIQUE;  // Normalisation
-            if (mn > 1.0) mn = 1.0;
+            double mn = mag / VAL_SOBEL_MAX_THEORIQUE;  //normalisation selon seuil théorique 
+            if (mn > 1.0) mn = 1.0; // manière pour s'assurer que ça ne dépasse pas 
             if (mn < 0.0) mn = 0.0;
             mag_norm[i][j] = mn;
             sum += mn;
             count++;
         }
     }
-    // Bords à 0
+    //traiter les bords et les metttre à 0 comme tt à l'heure
     for (long i = nrl; i <= nrh; i++) {
         mag_norm[i][ncl] = mag_norm[i][nch] = 0.0;
     }
@@ -163,19 +163,19 @@ double gradient_magnitude_norm(byte **gray, double **mag_norm,
         mag_norm[nrl][j] = mag_norm[nrh][j] = 0.0;
     }
 
-    // Libère la mémoire
+    //libération mem
     free_imatrix(ix, nrl, nrh, ncl, nch);
     free_imatrix(iy, nrl, nrh, ncl, nch);
 
-    // Retourne la moyenne
+    //retourner la moyenne de la norme => à voir si opn ajoute en bas écart type ou pas .... 
     return (count > 0) ? (sum / (double)count) : 0.0;
 }
 
-// Crée la carte des contours et retourne la densité
+//entrée matrice norme de gradient => sortie densité (pixel contours / h*W <=> N pixels )
 double detection_contours_hysterisis(double **mag_norm, byte **edges,
                                      long nrl, long nrh, long ncl, long nch, double t_norm) {
     long total = 0, edgec = 0;
-    // Traite l'intérieur
+    //parcours ici , faire attention au casting en byte pour optimiser
     for (long i = nrl + 1; i <= nrh - 1; i++) {
         for (long j = ncl + 1; j <= nch - 1; j++) {
             byte e = (mag_norm[i][j] >= t_norm) ? 1 : 0;
@@ -184,14 +184,14 @@ double detection_contours_hysterisis(double **mag_norm, byte **edges,
             total++;
         }
     }
-    // Bords à 0
+    //on aurait pu finalement mettre fonction utilitaire qui traite toute cette partie 
     for (long i = nrl; i <= nrh; i++) {
         edges[i][ncl] = edges[i][nch] = 0;
     }
     for (long j = ncl; j <= nch; j++) {
         edges[nrl][j] = edges[nrh][j] = 0;
     }
-    // Densité
+    //retourner la densité des contours
     return (total > 0) ? ((double)edgec / (double)total) : 0.0;
 }
 
@@ -208,8 +208,6 @@ void histogramme256(byte** gray, long nrl ,long nrh, long ncl , long nch , doubl
             N++;
         }
     }
-    if (N == 0) return;
-
 }
 
 // Calcule l'histogramme normalisé
@@ -227,19 +225,21 @@ void histogramme256_normalise(byte **gray, long nrl, long nrh, long ncl, long nc
     }
     if (N == 0) return;
 
-    //normalisation
+    //normalisation pour être entre 0 et 1 // N aurait pu être calculé autrmeent mais tant pis optimiser lors de l'exécution pas avant 
     for (int b = 0; b < 256; b++) {
         hist[b] = (double)H[b] / (double)N;
     }
 }
 
 
+//heuristique ( seuil ici 0.02)
+//EDIT Rayan : seuil à changé à 0.005 à cause de faux positifs ... et pas égalité à cause négatif 99.jpg
 int verifier_image_couleur_est_nb(uint64_t rsum, uint64_t gsum, uint64_t bsum,
                                  long nrl, long nrh, long ncl, long nch) {
     double S = (double)rsum + (double)gsum + (double)bsum;
     if (S <= 0) return 0;
     double r = rsum / S, g = gsum / S, b = bsum / S;
-    double maxc = fmax(r, fmax(g, b));
+    double maxc = fmax(r, fmax(g, b));//optimisation plutot que de le faire 3 fois 
     double minc = fmin(r, fmin(g, b));
     //cas couleur ou noir et blanc
     return ((maxc - minc) < 0.02) ? 0 : 1;
@@ -250,12 +250,10 @@ int extraire_features_from_file(const char *filename, ImageFeatures *feat,
                                int do_apply_filtre, double seuil_contour, int image_type) {
     //TODO, à ajouter une fonction qui initialise toutes les ressources dont nous avons besoin 
     memset(feat, 0, sizeof(*feat));
-
     long nrl, nrh, ncl, nch;
     byte **gray = NULL;
     double r_ratio = 1.0 / 3.0, g_ratio = 1.0 / 3.0, b_ratio = 1.0 / 3.0;
     int is_color = 0;
-
     if (image_type == IMAGE_TYPE_PPM) {
         rgb8 **rgb = load_ppm_rgb_and_to_gray(filename, &nrl, &nrh, &ncl, &nch, &gray, &r_ratio, &g_ratio, &b_ratio, &is_color);
         if (!rgb) return -1;
@@ -279,7 +277,7 @@ int extraire_features_from_file(const char *filename, ImageFeatures *feat,
     feat->ratio_vert = g_ratio;
     feat->ratio_bleu = b_ratio;
 
-    // Filtre moyenne si on l'indique dans param
+    //Fitlre moyenneur par défaut si on indique dans le param, mais j'ai peur que ça fausse le reste 
     if (do_apply_filtre) {
         byte **filt = bmatrix(nrl, nrh, ncl, nch);
         filtre_moyenneur(gray, filt, nrl, nrh, ncl, nch);
@@ -290,15 +288,11 @@ int extraire_features_from_file(const char *filename, ImageFeatures *feat,
     //gradient
     double **mag_norm = (double**)dmatrix(nrl, nrh, ncl, nch);
     feat->moyenne_gradient_norme = gradient_magnitude_norm(gray, mag_norm, nrl, nrh, ncl, nch);
-
     //contour
     byte **edges = bmatrix(nrl, nrh, ncl, nch);
     feat->densite_contours = detection_contours_hysterisis(mag_norm, edges, nrl, nrh, ncl, nch, seuil_contour);
-
     //histogramme normalisé et remplissage tabeau directement passé par adresse 
     histogramme256_normalise(gray, nrl, nrh, ncl, nch, feat->hist);
-
-
     //libération de ressources 
     free_bmatrix(gray, nrl, nrh, ncl, nch);
     free_dmatrix((double**)mag_norm, nrl, nrh, ncl, nch); 
@@ -307,14 +301,14 @@ int extraire_features_from_file(const char *filename, ImageFeatures *feat,
     return 0;
 }
 
-//écrit entête csv
+//écrit entête csv (pour l'export)
 void ecrire_csv_header(FILE *fout) {
     fprintf(fout, "name,width,height,moyenne_gradient_norme,densite_contours,ratio_rouge,ratio_vert,ratio_bleu,is_color");
     for (int i = 0; i < 256; i++) fprintf(fout, ",hist%d", i); //histogramme
     fprintf(fout, "\n");
 }
 
-// Écrit une ligne CSV
+//écrire une ligne csv V0
 void ecrire_csv_ligne(FILE *fout, const char *name, const ImageFeatures *feat) {
     fprintf(fout, "%s,%ld,%ld,%f,%f,%f,%f,%f,%d",
             name, feat->width, feat->height,
@@ -355,10 +349,10 @@ double distance_hellinger(const double hist1[256], const double hist2[256]) {
         double diff = sqrt(hist1[i]) - sqrt(hist2[i]);
         sum += diff * diff;
     }
-    return sqrt(sum) / sqrt(2.0);
+    return sqrt(sum) / sqrt(2.0); // il me semble que c'est pour normaliser le racine de 2 
 }
 
-// Distance du chi-carré
+//ki-deux se prononce comme ça pb punitive ... comme la l2 
 double distance_chi_square(const double hist1[256], const double hist2[256]) {
     double sum = 0.0;
     for (int i = 0; i < 256; i++) {
@@ -377,15 +371,15 @@ double evaluate_score(const ImageFeatures *feat1, const ImageFeatures *feat2, Di
                       double weight_norm, double weight_contour, double weight_color) {
     // Distance de l'histogramme
     double dist_hist = dist_func(feat1->hist, feat2->hist);
-    // printf("Distance histogramme: %.4f\n", dist_hist);
+    printf("Distance histogramme: %.4f\n", dist_hist);
     
     // Différences absolues pour les ratios RGB
     double diff_r = fabs(feat1->ratio_rouge - feat2->ratio_rouge);
-    // printf("Différence ratio rouge: %.4f\n", diff_r);
+    printf("Différence ratio rouge: %.4f\n", diff_r);
     double diff_g = fabs(feat1->ratio_vert - feat2->ratio_vert);
-    // printf("Différence ratio vert: %.4f\n", diff_g);
+    printf("Différence ratio vert: %.4f\n", diff_g);
     double diff_b = fabs(feat1->ratio_bleu - feat2->ratio_bleu);
-    // printf("Différence ratio bleu: %.4f\n", diff_b);
+    printf("Différence ratio bleu: %.4f\n", diff_b);
     
     // Différences pour la norme du gradient et la densité des contours
     double diff_norm = fabs(feat1->moyenne_gradient_norme - feat2->moyenne_gradient_norme);
@@ -398,7 +392,7 @@ double evaluate_score(const ImageFeatures *feat1, const ImageFeatures *feat2, Di
     printf("Pénalité couleur: %.4f\n", diff_color);
     
     
-    // Score pondéré (somme des distances pondérées)
+    //fonction évaluation finale 
     double score = weight_hist * dist_hist +
                    weight_r * diff_r +
                    weight_g * diff_g +
@@ -406,7 +400,7 @@ double evaluate_score(const ImageFeatures *feat1, const ImageFeatures *feat2, Di
                    weight_norm * diff_norm +
                    weight_contour * diff_contour +
                    weight_color * diff_color;
-    printf("Score total: %.4f\n", score);
+    printf("Score totallllllllllllllll => : %.4f\n", score);
     
     return score;
 }
